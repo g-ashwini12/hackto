@@ -6,11 +6,11 @@ ZeroDay PS2 is a private, on-device legal document triage agent. It is designed 
 ## 🛠️ Technical Architecture
 The system follows a multi-layered approach:
 1. **Ingestion Layer**: Local PDF/TXT extraction and context-aware chunking.
-2. **Retrieval Layer**: Hybrid local search using ChromaDB for precise context fetching.
+2. **Retrieval Layer**: In-process BM25 over each document's chunks (no embedding model, no network), plus a coverage check that answers "the document is silent" when a topic never appears. ChromaDB is optional (`RETRIEVAL_BACKEND=chroma`, telemetry off).
 3. **Orchestration Layer**: A LangGraph state machine that routes queries, runs parallel analysis, and merges results.
 4. **Verification Layer**: A grounding service that ensures every AI claim is backed by evidence in the text.
 5. **Safety Layer**: A policy filter that blocks the AI from giving legal verdicts or advice.
-6. **Observability Layer**: SQLite-based metrics and JSON manifests for complete reproducibility.
+6. **Observability Layer**: Per-stage trace spans, `Server-Timing` headers, p50/p95/p99 latency, Ollama token/timing data, SQLite metrics and JSON manifests. Metadata only, never document text or prompts. See `docs/observability-and-latency.md`.
 
 ## 📝 Step-by-Step Implementation Procedure
 
@@ -51,7 +51,7 @@ The system follows a multi-layered approach:
    cd /path/to/zeroday_ps2
    python3 -m venv venv
    source venv/bin/activate
-   pip install fastapi uvicorn python-multipart pydantic-settings PyPDF2 chromadb langgraph langchain-community ollama
+   pip install -r requirements.txt
    ```
 3. **Prepare the frontend dependencies** (one time):
    ```bash
@@ -63,11 +63,14 @@ The system follows a multi-layered approach:
    chmod +x run.sh
    ./run.sh
    ```
-   The launcher starts Ollama if needed, pulls `gemma:e4b` if it is missing, then starts the API and website. Open http://localhost:3000 and press Ctrl+C in the terminal to stop.
+   The launcher starts Ollama if needed, pulls `gemma3:1b` if it is missing, then starts the API and website. Open http://localhost:3000 and press Ctrl+C in the terminal to stop.
 
 ## 🛡️ Privacy & Compliance Verification
 - [x] All traffic stays on `127.0.0.1`.
 - [x] No cloud LLM calls.
-- [x] No telemetry or remote fonts.
-- [x] All claims verified against source text.
-- [x] No legal verdicts provided.
+- [x] No telemetry from the API or ChromaDB.
+- [ ] Remote fonts: `apps/app/app/layout.tsx` still uses `next/font/google` (fetched at build time, self-hosted at runtime). Switch to `next/font/local` or system fonts before the offline demo.
+- [x] Answers are checked against retrieved passages; topics the document never mentions get a "document is silent" answer without a model call.
+- [x] Verdict questions (enforceable, legal, should I sign, will I win) are refused before any model call, with escalation to a qualified lawyer / DLSA.
+
+Further reading: `docs/ps2-alignment.md`, `docs/observability-and-latency.md`, `docs/ui-structure.md`.

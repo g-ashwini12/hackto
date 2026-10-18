@@ -16,7 +16,7 @@ class VerificationService:
             return False, []
 
         # Split context into sentences
-        sentences = re.split(r'(?<=[.!?])\s+', context)
+        sentences = re.split(r'(?<!\bRs\.)(?<!\bNo\.)(?<!\bMr\.)(?<!\bDr\.)(?<=[.!?])\s+', context)
         evidence = []
 
         # Simple heuristic: find sentences that share a significant number of keywords
