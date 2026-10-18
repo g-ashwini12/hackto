@@ -15,17 +15,17 @@ function TimingChips({ m }: { m: ChatMessage }) {
   if (!t?.total_ms) return null;
   const stages = Object.entries(t.stages_ms ?? {}).filter(([k]) => k in STAGE_LABELS);
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400" title={m.requestId ? `Request ${m.requestId}` : undefined}>
-      <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 ring-1 ring-white/10">
+    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-200" title={m.requestId ? `Request ${m.requestId}` : undefined}>
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-950/70 px-2 py-0.5 ring-1 ring-white/15 backdrop-blur">
         <Gauge className="h-3 w-3" /> {formatMs(t.total_ms)}
       </span>
       {stages.map(([k, v]) => (
-        <span key={k} className="rounded-full bg-white/5 px-2 py-0.5 ring-1 ring-white/10">
+        <span key={k} className="rounded-full bg-slate-950/70 px-2 py-0.5 ring-1 ring-white/15 backdrop-blur">
           {STAGE_LABELS[k]} {formatMs(v)}
         </span>
       ))}
       {t.slow_stages && t.slow_stages.length > 0 && (
-        <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300 ring-1 ring-amber-300/30">over budget</span>
+        <span className="rounded-full bg-amber-950/80 px-2 py-0.5 text-amber-200 ring-1 ring-amber-300/40 backdrop-blur">over budget</span>
       )}
     </div>
   );
