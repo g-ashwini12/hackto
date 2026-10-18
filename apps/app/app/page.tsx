@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from 'react';
+import Aurora from '@/components/Aurora';
+import SplitText from '@/components/SplitText';
 
 export default function ChatPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -59,9 +61,31 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 font-sans">
-      <header className="p-4 bg-white border-b flex justify-between items-center">
-        <h1 className="text-xl font-bold text-gray-800">ZeroDay PS2 Legal Triage</h1>
+    <div className="relative isolate flex h-screen flex-col overflow-hidden bg-slate-950 font-sans text-white">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
+        <Aurora
+          colorStops={['#6769ff', '#22d3c5', '#8f5cff']}
+          amplitude={1.4}
+          blend={0.5}
+          speed={0.6}
+          glow={1.2}
+          layers={3}
+          direction="top"
+        />
+      </div>
+      <header className="relative z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/35 p-4 backdrop-blur-sm">
+        <h1 className="text-xl font-bold text-white">
+          <SplitText
+            text="ZeroDay PS2 Legal Triage"
+            className="inline-block"
+            tag="span"
+            textAlign="left"
+            trigger="load"
+            splitType="chars"
+            delay={35}
+            duration={0.8}
+          />
+        </h1>
         <div className="flex gap-2">
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
           <button
@@ -74,17 +98,17 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+      <main className="relative z-10 flex-1 space-y-4 overflow-y-auto p-4">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-2xl p-3 rounded-lg ${m.role === 'user' ? 'bg-blue-500 text-white' : 'bg-white text-gray-800 border'}`}>
+            <div className={`max-w-2xl rounded-lg p-3 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'border border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-sm'}`}>
               {m.text}
             </div>
           </div>
         ))}
       </main>
 
-      <footer className="p-4 bg-white border-t">
+      <footer className="relative z-10 border-t border-white/10 bg-slate-950/45 p-4 backdrop-blur-sm">
         <div className="flex gap-2 max-w-4xl mx-auto">
           <input
             value={input}
@@ -92,7 +116,7 @@ export default function ChatPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder={docId ? "Ask a question about the document..." : "Upload a document first"}
             disabled={!docId || loading}
-            className="flex-1 p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 rounded border border-white/15 bg-slate-900/80 p-2 text-white outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={handleSend}

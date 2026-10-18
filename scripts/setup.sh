@@ -8,14 +8,14 @@ echo "📝 Setting up environment..."
 cat <<EOF > .env
 NEXT_TELEMETRY_DISABLED=1
 LANGCHAIN_TRACING_V2=false
-OLLAMA_MODEL=gemma:4b
+OLLAMA_MODEL=gemma:e4b
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 EOF
 
 # 2. Ollama Model Pull
 if command -v ollama &> /dev/null; then
     echo "📦 Pulling Ollama model..."
-    ollama pull gemma:4b
+    ollama pull gemma:e4b
 else
     echo "❌ Ollama not found. Please install it from ollama.com"
     exit 1

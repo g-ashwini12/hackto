@@ -60,7 +60,7 @@ def analysis_node(state: GraphState, analysis_type: str):
     system = get_system_prompt(prompt_key)
 
     # Reproducibility: Create manifest
-    manifest_service.create_manifest(str(uuid.uuid4()), prompt, "gemma:4b", {"temp": 0})
+    manifest_service.create_manifest(str(uuid.uuid4()), prompt, "gemma:e4b", {"temp": 0})
 
     response = inference_client.generate(prompt, system)
 
