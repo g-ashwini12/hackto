@@ -4,21 +4,9 @@ import os
 # Versioned prompt templates
 # Each template includes few-shot examples as per requirements
 PROMPTS = {
-    "clause_analysis": {
-        "template": "Analyze the following legal clause and explain its meaning in plain language. Separate explicit statements from interpretations.\n\nClause: {clause}\n\nAnalysis:",
-        "system": "You are a legal document triage assistant. You do NOT provide legal advice. You explain what the document says. If the document is silent on a point, say 'document is silent'.",
-        "few_shot": [
-            {"input": "Tenant shall pay rent on the 1st of each month.", "output": "Explicit: Rent is due on the 1st. Interpretation: The tenant is responsible for timely payment to avoid late fees."},
-            {"input": "The parties may agree to modify this in writing.", "output": "Explicit: Modifications must be written. Interpretation: Verbal agreements to change terms are likely not binding."}
-        ]
-    },
-    "risk_detection": {
-        "template": "Identify any 'red flag' language or unfavorable terms in the following text. Be objective.\n\nText: {text}\n\nRisks:",
-        "system": "You are a risk detection agent. Identify unfavorable terms without giving legal verdicts like 'illegal'.",
-        "few_shot": [
-            {"input": "Landlord may enter premises at any time without notice.", "output": "Red Flag: Lack of notice for entry may violate privacy expectations."},
-            {"input": "This agreement is governed by the laws of the Galactic Empire.", "output": "Risk: Unfamiliar or non-standard jurisdiction."}
-        ]
+    "question_answer": {
+        "template": "Answer the user's question using only the relevant text below. Respond in plain everyday language in 1-3 short sentences. Preserve exact names, dates, amounts, and conditions from the text. If the text does not answer the question, say that clearly. Do not guess, add legal conclusions, or give legal advice.\n\nUser's question: {question}\n\nRelevant document text:\n{text}\n\nAnswer:",
+        "system": "You are a careful legal-document assistant. Give one direct, concise, text-grounded answer. Do not repeat the question or add headings.",
     },
     "classify_label": {
         "template": "Classify the following document into one of these categories: [rental, employment, legal_notice, service_agreement, non_legal].\n\nDocument text: {text}\n\nCategory:",

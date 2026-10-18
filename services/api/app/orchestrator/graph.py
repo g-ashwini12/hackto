@@ -4,10 +4,7 @@ from services.api.app.orchestrator.nodes import (
     ingestion_node,
     router_node,
     retrieval_node,
-    analyze_clause,
-    analyze_risk,
-    analyze_obligation,
-    analyze_deadline,
+    analyze_question,
     merge_node
 )
 
@@ -18,10 +15,7 @@ def create_legal_graph():
     workflow.add_node("ingestion", ingestion_node)
     workflow.add_node("router", router_node)
     workflow.add_node("retrieval", retrieval_node)
-    workflow.add_node("analyze_clause", analyze_clause)
-    workflow.add_node("analyze_risk", analyze_risk)
-    workflow.add_node("analyze_obligation", analyze_obligation)
-    workflow.add_node("analyze_deadline", analyze_deadline)
+    workflow.add_node("analyze_question", analyze_question)
     workflow.add_node("merge", merge_node)
 
     # Set Entry
@@ -40,16 +34,8 @@ def create_legal_graph():
         }
     )
 
-    workflow.add_edge("retrieval", "analyze_clause") # Start parallel fan-out
-    # Note: LangGraph parallelization is usually done via a node that returns multiple edges
-    # For simplicity here, we'll chain them or use a parallel wrapper if supported.
-    # To implement actual Parallelism in LangGraph, we'd use a node that triggers multiple others.
-
-    # Simplified linear flow for now that simulates the results:
-    workflow.add_edge("analyze_clause", "analyze_risk")
-    workflow.add_edge("analyze_risk", "analyze_obligation")
-    workflow.add_edge("analyze_obligation", "analyze_deadline")
-    workflow.add_edge("analyze_deadline", "merge")
+    workflow.add_edge("retrieval", "analyze_question")
+    workflow.add_edge("analyze_question", "merge")
     workflow.add_edge("merge", END)
 
     return workflow.compile()

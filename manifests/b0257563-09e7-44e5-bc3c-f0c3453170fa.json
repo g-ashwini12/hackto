@@ -1,0 +1,12 @@
+{
+  "request_id": "b0257563-09e7-44e5-bc3c-f0c3453170fa",
+  "timestamp": 1792326134.572004,
+  "model": "gemma3:1b",
+  "prompt_hash": -8792551104446822689,
+  "config": {
+    "temperature": 0.0,
+    "num_predict": 256
+  },
+  "seed": 42,
+  "temperature": 0.0
+}

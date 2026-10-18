@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     # Ollama Config
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma3:1b")
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    OLLAMA_KEEP_ALIVE: str = "5m"
     LLM_TEMPERATURE: float = 0.0
     LLM_SEED: int = 42
     LLM_CONTEXT_WINDOW: int = 2048
+    LLM_MAX_TOKENS: int = 256
 
     
     CHUNK_SIZE: int = 1000

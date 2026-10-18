@@ -15,11 +15,7 @@ class GraphState(TypedDict):
     chunks: List[str]
     retrieved_context: List[str]
 
-    # Parallel analysis results
-    clause_analysis: Optional[AnalysisResult]
-    risk_analysis: Optional[AnalysisResult]
-    obligation_analysis: Optional[AnalysisResult]
-    deadline_analysis: Optional[AnalysisResult]
+    answer_analysis: Optional[AnalysisResult]
 
     # Final response
     final_response: Optional[str]

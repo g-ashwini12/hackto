@@ -1,0 +1,11 @@
+{
+  "request_id": "05ceb7cf-6953-4f13-9b25-b4b507b70b04",
+  "timestamp": 1792325635.1364071,
+  "model": "gemma:e4b",
+  "prompt_hash": -7517244518023158835,
+  "config": {
+    "temp": 0
+  },
+  "seed": 42,
+  "temperature": 0.0
+}

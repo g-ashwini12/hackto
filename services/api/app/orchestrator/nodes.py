@@ -8,6 +8,7 @@ from services.api.app.services.verification import verification_service
 from services.api.app.orchestrator.policy import safety_service
 from services.api.app.observability.metrics import metrics_service
 from services.api.app.observability.manifest import manifest_service
+from services.api.app.config.settings import settings
 import time
 import uuid
 
@@ -33,8 +34,14 @@ def router_node(state: GraphState):
     category = inference_client.generate(prompt, system)
     is_legal = category != "non_legal"
 
-    # Log metric
-    metrics_service.log_request(str(uuid.uuid4()), state["doc_id"], 0.1, is_legal, category)
+    # Log metric - explicitly cast to ensure SQLite compatibility
+    metrics_service.log_request(
+        request_id=str(uuid.uuid4()),
+        doc_id=str(state["doc_id"]),
+        duration=0.1,
+        is_legal=bool(is_legal),
+        outcome=str(category)
+    )
 
     return {
         "is_legal_doc": is_legal,
@@ -46,55 +53,40 @@ def retrieval_node(state: GraphState):
     context = retrieval_service.retrieve(state["user_query"], doc_id=state["doc_id"])
     return {"retrieved_context": context}
 
-def analysis_node(state: GraphState, analysis_type: str):
-    """Generic analysis node to be used in parallel."""
-    prompt_key = {
-        "clause": "clause_analysis",
-        "risk": "risk_detection",
-        "obligation": "clause_analysis",
-        "deadline": "clause_analysis"
-    }.get(analysis_type, "clause_analysis")
-
+def analyze_question(state: GraphState):
+    """Answers the user's question in one grounded model call."""
     context = "\n\n".join(state["retrieved_context"])
-    prompt = get_prompt(prompt_key, clause=context if "clause" in prompt_key else "", text=context)
-    system = get_system_prompt(prompt_key)
+    prompt = get_prompt(
+        "question_answer",
+        question=state["user_query"],
+        text=context,
+    )
+    system = get_system_prompt("question_answer")
 
-    # Reproducibility: Create manifest
-    manifest_service.create_manifest(str(uuid.uuid4()), prompt, "gemma:e4b", {"temp": 0})
+    manifest_service.create_manifest(
+        str(uuid.uuid4()),
+        prompt,
+        settings.OLLAMA_MODEL,
+        {"temperature": settings.LLM_TEMPERATURE, "num_predict": settings.LLM_MAX_TOKENS},
+    )
 
     response = inference_client.generate(prompt, system)
 
-    # Verification Step: Grounding
     is_grounded, evidence = verification_service.verify_claim(response, context)
 
     result = AnalysisResult(
-        category=analysis_type,
+        category="answer",
         findings=[response] if is_grounded else ["Verification failed: Claim not grounded in text."],
         evidence=evidence,
-        risk_level="medium"
+        risk_level="low"
     )
 
-    return {f"{analysis_type}_analysis": result}
-
-# Wrappers for parallel execution
-def analyze_clause(state: GraphState): return analysis_node(state, "clause")
-def analyze_risk(state: GraphState): return analysis_node(state, "risk")
-def analyze_obligation(state: GraphState): return analysis_node(state, "obligation")
-def analyze_deadline(state: GraphState): return analysis_node(state, "deadline")
+    return {"answer_analysis": result}
 
 def merge_node(state: GraphState):
     """Merges results and applies safety validation."""
-    results = [
-        state.get("clause_analysis"),
-        state.get("risk_analysis"),
-        state.get("obligation_analysis"),
-        state.get("deadline_analysis")
-    ]
-
-    findings = []
-    for res in results:
-        if res:
-            findings.append(f"[{res.category.upper()}] {res.findings[0]}")
+    analysis = state.get("answer_analysis")
+    findings = [analysis.findings[0]] if analysis else []
 
     summary = "\n\n".join(findings)
 

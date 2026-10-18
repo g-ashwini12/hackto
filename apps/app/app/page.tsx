@@ -3,10 +3,23 @@ import React, { useState } from 'react';
 import Aurora from '@/components/Aurora';
 import SplitText from '@/components/SplitText';
 
+type AnalysisSection = {
+  title: string;
+  content: string;
+  evidence: string[];
+  verified: boolean;
+};
+
+type ChatMessage = {
+  role: 'user' | 'ai';
+  text: string;
+  sections?: AnalysisSection[];
+};
+
 export default function ChatPage() {
   const [file, setFile] = useState<File | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,14 +35,14 @@ export default function ChatPage() {
         body: formData,
       });
       const data = await res.json();
-      if (data.doc_id) {
+      if (res.ok && data.doc_id) {
         setDocId(data.doc_id);
-        setMessages([{ role: 'ai', text: `Document ${data.filename} uploaded. How can I help you analyze it?` }]);
+        setMessages([{ role: 'ai', text: `${data.filename} is ready. Ask a question about the document to get a plain-language explanation.` }]);
       } else {
-        alert(data.error || 'Upload failed');
+        setMessages(prev => [...prev, { role: 'ai', text: data.error || 'I couldn’t upload that document. Please try again.' }]);
       }
-    } catch (e) {
-      alert('Error uploading file');
+    } catch {
+      setMessages(prev => [...prev, { role: 'ai', text: 'I couldn’t connect to the document service. Check that the app is running, then try again.' }]);
     } finally {
       setLoading(false);
     }
@@ -37,7 +50,7 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     if (!input || !docId) return;
-    const userMsg = { role: 'user', text: input };
+    const userMsg: ChatMessage = { role: 'user', text: input };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -52,9 +65,17 @@ export default function ChatPage() {
         body: formData,
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.response }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', text: 'Error connecting to backend.' }]);
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || 'The document could not be analyzed.');
+      }
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: data.response || 'I couldn’t generate an analysis. Please try asking in a different way.',
+        sections: Array.isArray(data.sections) ? data.sections : undefined,
+      }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'I couldn’t connect to the analysis service.';
+      setMessages(prev => [...prev, { role: 'ai', text: message }]);
     } finally {
       setLoading(false);
     }
@@ -101,8 +122,42 @@ export default function ChatPage() {
       <main className="relative z-10 flex-1 space-y-4 overflow-y-auto p-4">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-2xl rounded-lg p-3 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'border border-white/10 bg-slate-900/70 text-slate-100 backdrop-blur-sm'}`}>
-              {m.text}
+            <div className={`w-full max-w-2xl rounded-xl p-4 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'border border-white/10 bg-slate-900/80 text-slate-100 backdrop-blur-sm'}`}>
+              {m.role === 'ai' && m.sections?.length ? (
+                <div className="space-y-4">
+                  <p className="text-sm leading-6 text-slate-300">
+                    I’ve grouped the review into sections. Expand the related document text to compare it with each explanation.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {m.sections.map((section) => (
+                      <section key={section.title} className="rounded-lg border border-white/10 bg-slate-950/60 p-4">
+                        <h2 className="mb-2 text-sm font-semibold text-cyan-200">{section.title}</h2>
+                        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{section.content}</p>
+                        {section.evidence.length > 0 && (
+                          <details className="mt-3 border-t border-white/10 pt-2">
+                            <summary className="cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-200">
+                              View related document text
+                            </summary>
+                            <ul className="mt-2 space-y-2">
+                              {section.evidence.map((quote, quoteIndex) => (
+                                <li key={quoteIndex} className="border-l-2 border-cyan-500/60 pl-3 text-xs leading-5 text-slate-300">
+                                  “{quote}”
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                        {!section.verified && (
+                          <p className="mt-2 text-xs text-amber-300">I couldn’t find matching document text to check this section.</p>
+                        )}
+                      </section>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400">For information only; this is not legal advice.</p>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-6">{m.text}</p>
+              )}
             </div>
           </div>
         ))}
