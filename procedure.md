@@ -46,25 +46,24 @@ The system follows a multi-layered approach:
 ## 🚀 How to Run the Project
 
 1. **Install Ollama**: Download from ollama.com.
-2. **Run Setup**:
+2. **Prepare the backend environment** (one time):
    ```bash
-   cd zeroday_ps2
-   chmod +x scripts/setup.sh
-   ./scripts/setup.sh
-   ```
-3. **Start Backend**:
-   ```bash
+   cd /path/to/zeroday_ps2
+   python3 -m venv venv
    source venv/bin/activate
-   export PYTHONPATH=$PYTHONPATH:$(pwd)/zeroday_ps2
-   python services/api/main.py
+   pip install fastapi uvicorn python-multipart pydantic-settings PyPDF2 chromadb langgraph langchain-community ollama
    ```
-4. **Start Frontend**:
+3. **Prepare the frontend dependencies** (one time):
    ```bash
-   cd apps/web
+   cd apps/app
    npm install
-   npm run dev
    ```
-5. **Use**: Upload a PDF/TXT and start asking legal triage questions.
+4. **Start the app** from the project root:
+   ```bash
+   chmod +x run.sh
+   ./run.sh
+   ```
+   The launcher starts Ollama if needed, pulls `gemma:e4b` if it is missing, then starts the API and website. Open http://localhost:3000 and press Ctrl+C in the terminal to stop.
 
 ## 🛡️ Privacy & Compliance Verification
 - [x] All traffic stays on `127.0.0.1`.
