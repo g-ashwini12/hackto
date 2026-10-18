@@ -50,7 +50,9 @@ class TestPhase4(unittest.TestCase):
         }
 
         result = legal_graph.invoke(inputs)
-        self.assertIn("Verification failed", result["final_response"])
+        # Off-topic questions now stop at the coverage check with a "document is silent" answer.
+        self.assertTrue(result.get("document_silent"))
+        self.assertIn("silent", result["final_response"])
 
 if __name__ == "__main__":
     unittest.main()

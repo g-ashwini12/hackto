@@ -1,32 +1,46 @@
-import time
+import hashlib
 import json
-import uuid
-from typing import Any, Dict
+import os
+import time
+from typing import Any, Dict, Optional
+
 from services.api.app.config.settings import settings
 
-class ManifestService:
-    """Creates a reproduction manifest for every LLM request."""
 
-    def create_manifest(self, request_id: str, prompt: str, model_tag: str, config: Dict[str, Any]) -> str:
-        """Generates a JSON manifest for reproducibility."""
+class ManifestService:
+    """Writes a reproduction manifest for every LLM call.
+
+    Stores a SHA-256 of the prompt (never the prompt itself) plus the
+    model, decoding config and timings needed to reproduce and profile it.
+    """
+
+    def create_manifest(
+        self,
+        request_id: str,
+        prompt: str,
+        model_tag: str,
+        config: Dict[str, Any],
+        stage: str = "answer",
+        timings: Optional[Dict[str, Any]] = None,
+    ) -> str:
         manifest = {
             "request_id": request_id,
+            "stage": stage,
             "timestamp": time.time(),
             "model": model_tag,
-            "prompt_hash": hash(prompt),
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "prompt_chars": len(prompt),
             "config": config,
             "seed": settings.LLM_SEED,
-            "temperature": settings.LLM_TEMPERATURE
+            "temperature": settings.LLM_TEMPERATURE,
+            "timings": timings or {},
         }
 
-        file_path = f"manifests/{request_id}.json"
-        # Ensure directory exists
-        import os
-        os.makedirs("manifests", exist_ok=True)
-
+        os.makedirs(settings.MANIFEST_DIR, exist_ok=True)
+        file_path = os.path.join(settings.MANIFEST_DIR, f"{request_id}-{stage}.json")
         with open(file_path, "w") as f:
             json.dump(manifest, f, indent=2)
-
         return file_path
+
 
 manifest_service = ManifestService()

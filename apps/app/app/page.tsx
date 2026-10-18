@@ -1,88 +1,140 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PanelLeftOpen, SquarePen } from 'lucide-react';
 import Aurora from '@/components/Aurora';
-import SplitText from '@/components/SplitText';
+import Sidebar from '@/components/chat/Sidebar';
+import Welcome from '@/components/chat/Welcome';
+import Composer from '@/components/chat/Composer';
+import MessageBubble, { TypingIndicator } from '@/components/chat/MessageBubble';
+import {
+  API_URL,
+  classifyResponse,
+  uid,
+  type ChatMessage,
+  type Conversation,
+  type Readiness,
+} from '@/components/chat/types';
 
-type AnalysisSection = {
-  title: string;
-  content: string;
-  evidence: string[];
-  verified: boolean;
+const CATEGORY_LABELS: Record<string, string> = {
+  rental: 'Rental agreement',
+  employment: 'Employment',
+  legal_notice: 'Legal notice',
+  service_agreement: 'Service agreement',
 };
 
-type ChatMessage = {
-  role: 'user' | 'ai';
-  text: string;
-  sections?: AnalysisSection[];
-};
+const newConversation = (): Conversation => ({ id: uid(), title: 'New chat', docId: null, filename: null, messages: [] });
 
 export default function ChatPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [docId, setDocId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>(() => [newConversation()]);
+  const [activeId, setActiveId] = useState<string>(() => conversations[0].id);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleUpload = async () => {
-    if (!file) return;
-    setLoading(true);
+  const active = useMemo(() => conversations.find((c) => c.id === activeId) ?? conversations[0], [conversations, activeId]);
+
+  const update = useCallback((id: string, fn: (c: Conversation) => Conversation) => {
+    setConversations((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
+  }, []);
+
+  const push = useCallback(
+    (id: string, msg: Omit<ChatMessage, 'id'>) => update(id, (c) => ({ ...c, messages: [...c.messages, { ...msg, id: uid() }] })),
+    [update],
+  );
+
+  useEffect(() => {
+    let stop = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/health/ready`);
+        if (!stop) setReadiness(res.ok ? await res.json() : { ollama: { reachable: false } });
+      } catch {
+        if (!stop) setReadiness({ ollama: { reachable: false } });
+      }
+    };
+    poll();
+    const t = setInterval(poll, 15000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [active.messages.length, busy]);
+
+  const handleUpload = async (file: File) => {
+    const convId = active.id;
+    setBusy(true);
     const formData = new FormData();
     formData.append('file', file);
-
     try {
-      const res = await fetch('http://127.0.0.1:8000/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
       if (res.ok && data.doc_id) {
-        setDocId(data.doc_id);
-        setMessages([{ role: 'ai', text: `${data.filename} is ready. Ask a question about the document to get a plain-language explanation.` }]);
+        update(convId, (c) => ({ ...c, docId: data.doc_id, filename: data.filename, category: data.category, title: data.filename }));
+        if (active.messages.length) {
+          push(convId, { role: 'ai', kind: 'info', text: `${data.filename} is ready. Ask me anything about it.`, timings: data.timings, requestId: data.request_id });
+        }
       } else {
-        setMessages(prev => [...prev, { role: 'ai', text: data.error || 'I couldn’t upload that document. Please try again.' }]);
+        push(convId, { role: 'ai', kind: 'error', text: data.error || 'I couldn’t read that document. Please try again.' });
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'ai', text: 'I couldn’t connect to the document service. Check that the app is running, then try again.' }]);
+      push(convId, { role: 'ai', kind: 'error', text: 'I couldn’t connect to the document service. Check that the app is running, then try again.' });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleSend = async () => {
-    if (!input || !docId) return;
-    const userMsg: ChatMessage = { role: 'user', text: input };
-    setMessages(prev => [...prev, userMsg]);
+  const handleSend = async (text?: string) => {
+    const query = (text ?? input).trim();
+    if (!query || !active.docId || busy) return;
+    const convId = active.id;
+    push(convId, { role: 'user', text: query });
     setInput('');
-    setLoading(true);
+    setBusy(true);
 
     const formData = new FormData();
-    formData.append('doc_id', docId);
-    formData.append('query', input);
+    formData.append('doc_id', active.docId);
+    formData.append('query', query);
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/chat', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch(`${API_URL}/chat`, { method: 'POST', body: formData });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || 'The document could not be analyzed.');
-      }
-      setMessages(prev => [...prev, {
+      if (!res.ok) throw new Error(data.detail || data.error || 'The document could not be analyzed.');
+      const sections = Array.isArray(data.sections) && data.sections.length ? data.sections : undefined;
+      const reply = data.response || 'I couldn’t generate an answer. Try asking in a different way.';
+      push(convId, {
         role: 'ai',
-        text: data.response || 'I couldn’t generate an analysis. Please try asking in a different way.',
-        sections: Array.isArray(data.sections) ? data.sections : undefined,
-      }]);
+        text: reply,
+        kind: classifyResponse(reply, sections),
+        sections,
+        timings: data.timings,
+        requestId: data.request_id,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'I couldn’t connect to the analysis service.';
-      setMessages(prev => [...prev, { role: 'ai', text: message }]);
+      push(convId, { role: 'ai', kind: 'error', text: message });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
+  const startNew = () => {
+    const c = newConversation();
+    setConversations((prev) => [c, ...prev]);
+    setActiveId(c.id);
+    setInput('');
+    setSidebarOpen(false);
+  };
+
+  const showWelcome = active.messages.length === 0;
+
   return (
-    <div className="relative isolate flex h-screen flex-col overflow-hidden bg-slate-950 font-sans text-white">
+    <div className="relative isolate flex h-screen overflow-hidden bg-slate-950 font-sans text-white">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
         <Aurora
           colorStops={['#6769ff', '#22d3c5', '#8f5cff']}
@@ -94,94 +146,75 @@ export default function ChatPage() {
           direction="top"
         />
       </div>
-      <header className="relative z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/35 p-4 backdrop-blur-sm">
-        <h1 className="text-xl font-bold text-white">
-          <SplitText
-            text="ZeroDay PS2 Legal Triage"
-            className="inline-block"
-            tag="span"
-            textAlign="left"
-            trigger="load"
-            splitType="chars"
-            delay={35}
-            duration={0.8}
-          />
-        </h1>
-        <div className="flex gap-2">
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
-          <button
-            onClick={handleUpload}
-            disabled={!file || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400"
-          >
-            {loading ? '...' : 'Upload'}
-          </button>
-        </div>
-      </header>
 
-      <main className="relative z-10 flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`w-full max-w-2xl rounded-xl p-4 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'border border-white/10 bg-slate-900/80 text-slate-100 backdrop-blur-sm'}`}>
-              {m.role === 'ai' && m.sections?.length ? (
-                <div className="space-y-4">
-                  <p className="text-sm leading-6 text-slate-300">
-                    I’ve grouped the review into sections. Expand the related document text to compare it with each explanation.
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {m.sections.map((section) => (
-                      <section key={section.title} className="rounded-lg border border-white/10 bg-slate-950/60 p-4">
-                        <h2 className="mb-2 text-sm font-semibold text-cyan-200">{section.title}</h2>
-                        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{section.content}</p>
-                        {section.evidence.length > 0 && (
-                          <details className="mt-3 border-t border-white/10 pt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-200">
-                              View related document text
-                            </summary>
-                            <ul className="mt-2 space-y-2">
-                              {section.evidence.map((quote, quoteIndex) => (
-                                <li key={quoteIndex} className="border-l-2 border-cyan-500/60 pl-3 text-xs leading-5 text-slate-300">
-                                  “{quote}”
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                        {!section.verified && (
-                          <p className="mt-2 text-xs text-amber-300">I couldn’t find matching document text to check this section.</p>
-                        )}
-                      </section>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400">For information only; this is not legal advice.</p>
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap text-sm leading-6">{m.text}</p>
-              )}
+      <div className="relative z-10 flex h-full w-full">
+        <Sidebar
+          conversations={conversations}
+          activeId={active.id}
+          onSelect={(id) => {
+            setActiveId(id);
+            setSidebarOpen(false);
+          }}
+          onNew={startNew}
+          readiness={readiness}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex h-14 items-center justify-between gap-2 px-3">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+                className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden"
+              >
+                <PanelLeftOpen className="h-5 w-5" />
+              </button>
+              <span className="truncate rounded-lg px-2 py-1 text-sm font-medium text-slate-200">
+                {active.filename ?? 'ZeroDay PS2 Legal Triage'}
+                {active.category && active.category !== 'non_legal' && (
+                  <span className="ml-2 rounded-full bg-cyan-400/10 px-2 py-0.5 text-xs text-cyan-200 ring-1 ring-cyan-300/30">
+                    {CATEGORY_LABELS[active.category] ?? active.category}
+                  </span>
+                )}
+              </span>
             </div>
-          </div>
-        ))}
-      </main>
+            <button onClick={startNew} aria-label="New chat" className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
+              <SquarePen className="h-5 w-5" />
+            </button>
+          </header>
 
-      <footer className="relative z-10 border-t border-white/10 bg-slate-950/45 p-4 backdrop-blur-sm">
-        <div className="flex gap-2 max-w-4xl mx-auto">
-          <input
+          <main ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto">
+            {showWelcome ? (
+              <Welcome
+                hasDocument={!!active.docId}
+                filename={active.filename}
+                onPick={(p) => handleSend(p)}
+                onAttach={handleUpload}
+                busy={busy}
+              />
+            ) : (
+              <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6">
+                {active.messages.map((m) => (
+                  <MessageBubble key={m.id} m={m} />
+                ))}
+                {busy && <TypingIndicator />}
+              </div>
+            )}
+          </main>
+
+          <Composer
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={docId ? "Ask a question about the document..." : "Upload a document first"}
-            disabled={!docId || loading}
-            className="flex-1 rounded border border-white/15 bg-slate-900/80 p-2 text-white outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500"
+            onChange={setInput}
+            onSend={() => handleSend()}
+            onAttach={handleUpload}
+            disabled={busy}
+            busy={busy}
+            hasDocument={!!active.docId}
           />
-          <button
-            onClick={handleSend}
-            disabled={!docId || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400"
-          >
-            Send
-          </button>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }

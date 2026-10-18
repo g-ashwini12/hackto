@@ -1,0 +1,14 @@
+# Local-only runtime data: may contain or derive from private documents.
+uploads/
+manifests/
+metrics.db*
+*.db-wal
+*.db-shm
+.env
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
