@@ -163,7 +163,7 @@ export default function ChatPage() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-14 items-center justify-between gap-2 px-3">
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1">
               <button
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open sidebar"
@@ -171,16 +171,16 @@ export default function ChatPage() {
               >
                 <PanelLeftOpen className="h-5 w-5" />
               </button>
-              <span className="truncate rounded-lg px-2 py-1 text-sm font-medium text-slate-200">
-                {active.filename ?? 'ZeroDay PS2 Legal Triage'}
+              <span className="flex min-w-0 items-center rounded-lg px-2 py-1 text-sm font-medium text-slate-200">
+                <span className="truncate">{active.filename ?? 'ZeroDay PS2 Legal Triage'}</span>
                 {active.category && active.category !== 'non_legal' && (
-                  <span className="ml-2 rounded-full bg-cyan-400/10 px-2 py-0.5 text-xs text-cyan-200 ring-1 ring-cyan-300/30">
+                  <span className="ml-2 shrink-0 whitespace-nowrap rounded-full bg-cyan-400/10 px-2 py-0.5 text-xs text-cyan-200 ring-1 ring-cyan-300/30">
                     {CATEGORY_LABELS[active.category] ?? active.category}
                   </span>
                 )}
               </span>
             </div>
-            <button onClick={startNew} aria-label="New chat" className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
+            <button onClick={startNew} aria-label="New chat" className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
               <SquarePen className="h-5 w-5" />
             </button>
           </header>
